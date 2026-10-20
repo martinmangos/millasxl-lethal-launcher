@@ -1,0 +1,1119 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; frame-src about:">
+<title>Lethal Launcher</title>
+<style>
+:root {
+  --bg: #030604;
+  --bg2: #07100a;
+  --g: #3dff7e;          /* fosforo */
+  --g-hi: #b6ffcb;
+  --g-mid: #23b357;
+  --g-dim: #155c2e;
+  --g-faint: #0c2a16;
+  --amber: #ffb52e;
+  --red: #ff4a3d;
+  --glow: 0 0 6px rgba(61, 255, 126, .45);
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, "Lucida Console", monospace;
+}
+* { box-sizing: border-box; border-radius: 0 !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--g); font: 14px/1.5 var(--mono); letter-spacing: .02em;
+  text-shadow: var(--glow); overflow: hidden; user-select: none;
+  display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: 210px 1fr;
+}
+/* CRT: scanlines + vinyeta encima de todo, sin capturar clicks */
+body::before, body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 100; }
+body::before { background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .28) 0 1px, transparent 1px 3px); }
+body::after { background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, .55) 100%); animation: flicker 6s infinite steps(1); }
+@keyframes flicker { 0%, 97% { opacity: 1; } 98% { opacity: .85; } 99% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { body::after, .caret, .blink { animation: none !important; } }
+button, input, select { font: inherit; color: inherit; letter-spacing: inherit; text-shadow: inherit; }
+::selection { background: var(--g); color: var(--bg); text-shadow: none; }
+::-webkit-scrollbar { width: 12px; }
+::-webkit-scrollbar-track { background: var(--bg); border-left: 1px solid var(--g-faint); }
+::-webkit-scrollbar-thumb { background: var(--g-dim); border: 3px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--g-mid); }
+:focus-visible { outline: 1px dashed var(--g); outline-offset: 2px; }
+.dim { color: var(--g-mid); }
+.faint { color: var(--g-dim); text-shadow: none; }
+.amber { color: var(--amber); text-shadow: 0 0 6px rgba(255, 181, 46, .45); }
+.red { color: var(--red); text-shadow: 0 0 6px rgba(255, 74, 61, .45); }
+.blink { animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ---------- barra superior ---------- */
+header {
+  grid-column: 1 / -1; display: flex; gap: 24px; align-items: center; padding: 10px 18px;
+  border-bottom: 1px solid var(--g-dim); background: var(--bg2); white-space: nowrap; overflow: hidden;
+}
+header .title { color: var(--g-hi); font-weight: 700; letter-spacing: .14em; }
+header .sep { flex: 1; overflow: hidden; color: var(--g-dim); text-shadow: none; }
+header .sep::before { content: "////////////////////////////////////////////////////////////////////////////////////////////////////////////////"; }
+header .kv { color: var(--g-mid); }
+header .kv b { color: var(--g); font-weight: 400; }
+
+/* ---------- navegacion ---------- */
+nav { border-right: 1px solid var(--g-dim); padding: 18px 0; display: flex; flex-direction: column; min-height: 0; }
+.nav {
+  display: flex; gap: 8px; align-items: center; padding: 6px 18px; background: none; border: 0;
+  text-align: left; cursor: pointer; color: var(--g-mid); text-transform: uppercase;
+}
+.nav::before { content: " "; white-space: pre; width: 1ch; }
+.nav:hover { color: var(--g); }
+.nav.active { color: var(--bg); background: var(--g); text-shadow: none; }
+.nav.active::before { content: ">"; }
+.nav .count { margin-left: auto; color: var(--amber); }
+.nav.active .count { color: var(--bg); }
+.nav-foot { margin-top: auto; padding: 0 18px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.nav-foot label { color: var(--g-dim); text-shadow: none; text-transform: uppercase; }
+select.term {
+  appearance: none; background: var(--bg); border: 1px solid var(--g-dim); padding: 4px 8px; cursor: pointer; width: 100%;
+  text-transform: uppercase;
+}
+select.term:hover { border-color: var(--g-mid); }
+select.term option { background: var(--bg); color: var(--g); }
+
+/* ---------- paginas ---------- */
+main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.page { display: none; flex: 1; overflow-y: auto; overflow-x: hidden; padding: 22px 28px 34px; min-height: 0; }
+.page.active { display: block; animation: boot .18s steps(3); }
+@keyframes boot { from { opacity: 0; } }
+h1 { font-size: 14px; font-weight: 700; margin: 0 0 18px; color: var(--g-hi); text-transform: uppercase; letter-spacing: .16em; display: flex; gap: 12px; align-items: center; }
+h1::after { content: ""; flex: 1; border-top: 1px solid var(--g-dim); }
+.panel { border: 1px solid var(--g-dim); padding: 14px 16px; position: relative; margin-top: 10px; }
+.panel > .pt { position: absolute; top: -10px; left: 12px; background: var(--bg); padding: 0 8px; color: var(--g-hi); text-transform: uppercase; letter-spacing: .12em; font-size: 12.5px; }
+.panel > .pt-r { position: absolute; top: -11px; right: 12px; background: var(--bg); padding: 0 6px; }
+
+/* ---------- botones ---------- */
+.btn {
+  background: none; border: 0; padding: 2px 4px; cursor: pointer; white-space: nowrap; text-transform: uppercase; color: var(--g);
+}
+.btn::before { content: "[ "; color: var(--g-mid); }
+.btn::after { content: " ]"; color: var(--g-mid); }
+.btn:hover:not(:disabled) { background: var(--g); color: var(--bg); text-shadow: none; }
+.btn:hover:not(:disabled)::before, .btn:hover:not(:disabled)::after { color: var(--bg); }
+.btn:disabled { color: var(--g-dim); cursor: default; text-shadow: none; }
+.btn:disabled::before, .btn:disabled::after { color: var(--g-faint); }
+.btn.amber { color: var(--amber); }
+.btn.amber:hover:not(:disabled) { background: var(--amber); }
+.btn.red:hover:not(:disabled) { background: var(--red); color: var(--bg); }
+.btn.big { padding: 10px 18px; border: 1px solid var(--g); font-weight: 700; letter-spacing: .12em; }
+.btn.big::before, .btn.big::after { content: none; }
+.btn.big.solid { background: var(--g); color: var(--bg); text-shadow: none; }
+.btn.big.solid:hover:not(:disabled) { background: var(--g-hi); }
+.btn.big:disabled { border-color: var(--g-dim); background: none; color: var(--g-dim); }
+body.busy .needs-idle { opacity: .35; pointer-events: none; }
+
+/* ---------- inicio ---------- */
+.boot { margin: 0 0 22px; }
+.kvrow { display: flex; gap: 0; max-width: 760px; }
+.kvrow .k { color: var(--g-mid); white-space: nowrap; }
+.kvrow .lead { flex: 1 1 0; overflow: hidden; color: var(--g-dim); text-shadow: none; white-space: nowrap; min-width: 24px; }
+.kvrow .lead::before { content: " ........................................................................................................ "; }
+.kvrow .v { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; user-select: text; }
+.launch { display: flex; gap: 14px; margin: 6px 0 26px; flex-wrap: wrap; }
+.warn-box { border: 1px solid var(--amber); color: var(--amber); padding: 12px 14px; margin-bottom: 22px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; text-shadow: 0 0 6px rgba(255, 181, 46, .4); }
+.warn-box span { flex: 1; min-width: 260px; }
+.cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+.cols > * { min-width: 0; }
+.log { height: 240px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; user-select: text; font-size: 12.5px; }
+.log .t { color: var(--g-dim); text-shadow: none; }
+.log:empty::before { content: "> sin actividad"; color: var(--g-dim); text-shadow: none; }
+
+/* ---------- operador (ascii animado) ---------- */
+.home { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 26px; align-items: start; }
+.operator-panel { padding: 14px 14px 10px; }
+.operator {
+  margin: 0; font: 7px/7px var(--mono); letter-spacing: 0; color: var(--g); white-space: pre; position: relative; overflow: hidden;
+  text-shadow: 0 0 4px rgba(61, 255, 126, .55);
+}
+.operator div { height: 7px; }
+/* linea de barrido que baja por la figura */
+.operator::after {
+  content: ""; position: absolute; left: 0; right: 0; top: -60px; height: 60px; pointer-events: none; mix-blend-mode: screen;
+  background: linear-gradient(transparent, rgba(61, 255, 126, .22) 70%, rgba(182, 255, 203, .45) 96%, transparent);
+  animation: sweep 5.5s linear infinite;
+}
+@keyframes sweep { to { top: 100%; } }
+.op-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 11.5px; color: var(--g-mid); }
+@media (max-width: 1000px) { .operator-panel { display: none; } .home { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .operator::after { animation: none; display: none; } }
+
+/* ---------- listas ---------- */
+.line { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-bottom: 1px dashed var(--g-faint); min-width: 0; }
+.line:hover { background: var(--g-faint); }
+.line.off { color: var(--g-dim); text-shadow: none; }
+.line .ico { width: 32px; height: 32px; flex: none; image-rendering: pixelated; filter: grayscale(1) sepia(1) hue-rotate(75deg) saturate(3.5) brightness(.8) contrast(1.2); border: 1px solid var(--g-dim); background: var(--bg2); }
+.line:hover .ico, .detail-head .ico:hover { filter: none; }
+.line.off .ico { opacity: .4; }
+.line .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+.line .nm b { font-weight: 700; }
+.line .lead { flex: 1 1 0; min-width: 20px; overflow: hidden; white-space: nowrap; color: var(--g-dim); text-shadow: none; }
+.line .lead::before { content: "................................................................................................................................................"; }
+.line .sub { color: var(--g-mid); white-space: nowrap; font-size: 12.5px; }
+.line .num { color: var(--g-mid); white-space: nowrap; font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; }
+.line .idx { color: var(--g-dim); width: 4ch; text-align: right; text-shadow: none; flex: none; }
+.line.click { cursor: pointer; }
+.empty { padding: 30px 8px; color: var(--g-mid); white-space: pre-wrap; }
+.prompt { display: flex; align-items: center; gap: 10px; border: 1px solid var(--g-dim); padding: 8px 12px; margin-bottom: 14px; }
+.prompt:focus-within { border-color: var(--g); }
+.prompt label { color: var(--g-mid); white-space: nowrap; text-transform: uppercase; }
+.prompt input { flex: 1; background: none; border: 0; outline: 0; caret-color: var(--g); user-select: text; min-width: 0; }
+.prompt input::placeholder { color: var(--g-dim); text-shadow: none; }
+.meta-line { color: var(--g-mid); font-size: 12.5px; margin: -6px 0 10px; }
+.sentinel { height: 30px; }
+
+/* ---------- detalle ---------- */
+.detail {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 94vw); z-index: 30; background: var(--bg);
+  border-left: 1px solid var(--g); display: flex; flex-direction: column; transform: translateX(101%); transition: transform .18s steps(4);
+}
+.detail.open { transform: none; }
+.shade { position: fixed; inset: 0; z-index: 29; background: rgba(0, 0, 0, .6); display: none; }
+.shade.open { display: block; }
+.detail-head { display: flex; gap: 14px; padding: 18px 20px 14px; border-bottom: 1px solid var(--g-dim); }
+.detail-head .ico { width: 72px; height: 72px; border: 1px solid var(--g-dim); filter: grayscale(1) sepia(1) hue-rotate(75deg) saturate(3.5) brightness(.8) contrast(1.2); }
+.detail-head .t { flex: 1; min-width: 0; }
+.detail-head h2 { margin: 0; font-size: 18px; color: var(--g-hi); word-break: break-word; }
+.detail-head .by { color: var(--g-mid); margin-bottom: 6px; }
+.detail-head .facts { color: var(--g-mid); font-size: 12.5px; }
+.detail-bar { display: flex; gap: 6px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--g-dim); flex-wrap: wrap; }
+.detail-bar .tabs { margin-left: auto; display: flex; gap: 2px; }
+.tab { background: none; border: 0; padding: 2px 8px; cursor: pointer; color: var(--g-mid); text-transform: uppercase; }
+.tab.active { background: var(--g); color: var(--bg); text-shadow: none; }
+.detail-body { flex: 1; min-height: 0; position: relative; }
+.detail-body iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.detail-body .pad { padding: 18px 20px; overflow-y: auto; height: 100%; }
+
+/* ---------- config de mods ---------- */
+.cfg-layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 22px; align-items: start; }
+.cfg-side { position: sticky; top: 0; max-height: calc(100vh - 140px); overflow-y: auto; padding-right: 4px; }
+.cfg-file { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border-bottom: 1px dashed var(--g-faint); cursor: pointer; min-width: 0; }
+.cfg-file:hover { background: var(--g-faint); }
+.cfg-file.active { background: var(--g); color: var(--bg); text-shadow: none; }
+.cfg-file .ico { width: 26px; height: 26px; flex: none; border: 1px solid var(--g-dim); background: var(--bg2); filter: grayscale(1) sepia(1) hue-rotate(75deg) saturate(3.5) brightness(.8) contrast(1.2); }
+.cfg-file.active .ico { filter: none; }
+.cfg-file .blank { width: 26px; height: 26px; flex: none; border: 1px dashed var(--g-dim); display: grid; place-items: center; color: var(--g-dim); font-size: 11px; text-shadow: none; }
+.cfg-file .t { min-width: 0; flex: 1; }
+.cfg-file .t b { display: block; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfg-file .t small { display: block; font-size: 11.5px; color: var(--g-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: none; }
+.cfg-file.active .t small { color: var(--bg); }
+.cfg-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.cfg-head .ttl { flex: 1; min-width: 220px; }
+.cfg-head .ttl b { color: var(--g-hi); font-size: 16px; display: block; }
+.cfg-head .ttl small { color: var(--g-mid); font-size: 12px; }
+.cfg-head .prompt { margin: 0 0 10px; flex: 1 1 100%; padding: 4px 10px; }
+.erow { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; padding: 9px 4px; border-bottom: 1px dashed var(--g-faint); align-items: start; }
+.erow:last-child { border-bottom: 0; }
+.erow .nm b { font-weight: 700; word-break: break-word; }
+.erow.mod .nm b::before { content: "\25CF "; color: var(--amber); }
+.erow .d { color: var(--g-mid); font-size: 12.5px; white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
+.erow .meta { color: var(--g-dim); font-size: 11.5px; text-shadow: none; margin-top: 2px; user-select: text; }
+.erow .ctl { display: flex; gap: 8px; align-items: center; justify-content: flex-end; min-width: 0; }
+.erow .ctl > :first-child { flex: 1 1 auto; min-width: 0; }
+.erow .ctl > button:first-child { flex: 0 0 auto; }
+.cin { width: 100%; background: var(--bg); border: 1px solid var(--g-dim); padding: 4px 8px; outline: 0; color: var(--g); user-select: text; min-width: 0; }
+.cin:focus { border-color: var(--g); }
+textarea.cfgtext {
+  width: 100%; height: calc(100vh - 250px); min-height: 280px; resize: vertical; background: var(--bg); border: 1px solid var(--g-dim);
+  padding: 10px 12px; outline: 0; color: var(--g); font: 12.5px/1.5 var(--mono); white-space: pre; tab-size: 4; user-select: text;
+}
+textarea.cfgtext:focus { border-color: var(--g); }
+@media (max-width: 1000px) { .cfg-layout { grid-template-columns: 1fr; } .cfg-side { position: static; max-height: 240px; } .erow { grid-template-columns: 1fr; } }
+
+/* ---------- ajustes / perfiles ---------- */
+.stack { display: flex; flex-direction: column; gap: 22px; max-width: 900px; }
+.setrow { display: flex; align-items: center; gap: 12px; padding: 6px 0; flex-wrap: wrap; }
+.setrow .k { color: var(--g-mid); width: 18ch; text-transform: uppercase; }
+.setrow .v { flex: 1; min-width: 200px; word-break: break-all; user-select: text; }
+
+/* ---------- estado / mensajes / dialogo ---------- */
+footer {
+  grid-column: 1 / -1; border-top: 1px solid var(--g-dim); background: var(--bg2); padding: 6px 18px;
+  display: flex; gap: 16px; align-items: center; white-space: nowrap; overflow: hidden; font-size: 12.5px; min-height: 31px;
+}
+footer .msg { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+footer .bar { color: var(--g); letter-spacing: 0; }
+.msgs { position: fixed; right: 18px; bottom: 44px; z-index: 50; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.note { background: var(--bg); border: 1px solid var(--g); padding: 8px 12px; max-width: 440px; pointer-events: auto; user-select: text; word-break: break-word; }
+.note.err { border-color: var(--red); color: var(--red); text-shadow: 0 0 6px rgba(255, 74, 61, .45); }
+.dialog-bg { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .7); display: grid; place-items: center; }
+.dialog { width: min(480px, 92vw); background: var(--bg); border: 1px solid var(--g); padding: 18px 20px; box-shadow: 0 0 0 4px var(--bg), 0 0 0 5px var(--g-dim); }
+.dialog .q { color: var(--g-hi); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; word-break: break-word; }
+.dialog p { margin: 0 0 18px; color: var(--g-mid); white-space: pre-line; word-break: break-word; }
+.dialog .row { display: flex; justify-content: flex-end; gap: 10px; }
+
+@media (max-width: 1050px) { .cols { grid-template-columns: 1fr; } header .kv.opt { display: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="title">LETHAL//LAUNCHER</span>
+  <span class="sep"></span>
+  <span class="kv">PERFIL: <b id="hd-profile">—</b></span>
+  <span class="kv opt">CATÁLOGO: <b id="cat-text">CARGANDO<span class="blink">_</span></b></span>
+  <span class="kv opt" id="hd-clock"></span>
+</header>
+
+<nav>
+  <button class="nav active" data-page="home">Inicio</button>
+  <button class="nav" data-page="mods">Mods <span class="count" id="nav-updates" hidden></span></button>
+  <button class="nav" data-page="browse">Tienda</button>
+  <button class="nav" data-page="config">Config</button>
+  <button class="nav" data-page="profiles">Perfiles</button>
+  <button class="nav" data-page="settings">Ajustes</button>
+  <div class="nav-foot">
+    <label for="profile-select">Perfil activo</label>
+    <select class="term needs-idle" id="profile-select"></select>
+  </div>
+</nav>
+
+<main>
+  <!-- INICIO -->
+  <section class="page active" id="page-home">
+    <h1>Terminal de la nave</h1>
+    <div class="home"><div>
+    <div id="home-callout"></div>
+    <div class="boot">
+      <div class="dim">COMPANY OS v2.0 — CONEXIÓN ESTABLECIDA</div>
+      <div class="faint">────────────────────────────────────────</div>
+      <div class="kvrow"><span class="k">ESTADO</span><span class="lead"></span><span class="v" id="hero-tag">—</span></div>
+      <div class="kvrow"><span class="k">RUTA</span><span class="lead"></span><span class="v" id="hero-path">—</span></div>
+      <div class="kvrow"><span class="k">BEPINEX</span><span class="lead"></span><span class="v" id="hero-bep">—</span></div>
+      <div class="kvrow"><span class="k">MODS</span><span class="lead"></span><span class="v" id="st-installed">—</span></div>
+      <div class="kvrow"><span class="k">ACTUALIZACIONES</span><span class="lead"></span><span class="v" id="st-updates">—</span></div>
+    </div>
+    <div class="launch">
+      <button class="btn big solid needs-idle" id="play-mods">▶ LAUNCH — CON MODS</button>
+      <button class="btn big needs-idle" id="play-vanilla">LAUNCH — VANILLA</button>
+    </div>
+    <div class="cols">
+      <div class="panel"><span class="pt">Registro</span><span class="pt-r"><button class="btn" id="clear-log">limpiar</button></span>
+        <div class="log" id="log"></div></div>
+      <div class="panel"><span class="pt">Actualizaciones</span><span class="pt-r"><button class="btn amber needs-idle" id="home-update-all" hidden>todo</button></span>
+        <div id="home-updates"></div></div>
+    </div>
+    </div>
+    <div class="panel operator-panel"><span class="pt">Operador</span>
+      <pre class="operator" id="operator" aria-hidden="true"></pre>
+      <div class="op-foot"><span>ID 0451 // EN LÍNEA</span><span class="blink">█</span></div>
+    </div></div>
+  </section>
+
+  <!-- MODS -->
+  <section class="page" id="page-mods">
+    <h1>Mods instalados</h1>
+    <div class="prompt"><label for="mods-filter">&gt; filtrar:</label><input id="mods-filter" autocomplete="off" spellcheck="false">
+      <button class="btn amber needs-idle" id="mods-update-all" hidden></button>
+      <button class="btn" id="mods-open-folder">carpeta</button></div>
+    <div class="meta-line" id="mods-sub"></div>
+    <div id="mods-list"></div>
+  </section>
+
+  <!-- TIENDA -->
+  <section class="page" id="page-browse">
+    <h1>Tienda — Thunderstore</h1>
+    <div class="prompt"><label for="browse-q">&gt; buscar:</label><input id="browse-q" autocomplete="off" spellcheck="false" placeholder="nombre, autor o descripción"><span class="faint">/</span></div>
+    <div class="meta-line" id="browse-count"></div>
+    <div id="browse-cards"></div>
+    <div class="sentinel" id="browse-sentinel"></div>
+  </section>
+
+  <!-- CONFIG -->
+  <section class="page" id="page-config">
+    <h1>Configuración de mods</h1>
+    <div id="cfg-warn"></div>
+    <div class="cfg-layout">
+      <div class="cfg-side">
+        <div class="prompt"><label for="cfg-filter">&gt; filtrar:</label><input id="cfg-filter" autocomplete="off" spellcheck="false"></div>
+        <div id="cfg-files"></div>
+      </div>
+      <div id="cfg-main"><div class="empty">&gt; elige un mod de la lista para editar sus ajustes.</div></div>
+    </div>
+  </section>
+
+  <!-- PERFILES -->
+  <section class="page" id="page-profiles">
+    <h1>Perfiles</h1>
+    <p class="dim" style="margin:0 0 16px">Al cambiar de perfil, los mods actuales se guardan en el activo y se cargan los del nuevo.</p>
+    <div class="panel" style="margin: 16px 0 26px"><span class="pt">Compartir modpack</span>
+      <p class="dim" style="margin: 0 0 12px">Guarda tus mods (con la versión exacta de cada uno y si están activos), tus configs y ajustes en un solo <b>.json</b>. Tu amigo lo carga y queda igual que tú. Revisa los configs antes de compartirlos.</p>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center">
+        <label class="prompt" style="margin: 0; flex: 1 1 260px"><span class="dim">&gt; nombre:</span><input id="pack-name" maxlength="60" autocomplete="off" spellcheck="false" placeholder="nombre del modpack"></label>
+        <button class="btn needs-idle" id="pack-export">exportar modpack</button>
+        <button class="btn primary needs-idle" id="pack-import">cargar modpack</button>
+      </div>
+    </div>
+    <form class="prompt" id="new-profile"><label for="new-profile-name">&gt; nuevo perfil:</label>
+      <input id="new-profile-name" maxlength="40" autocomplete="off" spellcheck="false"><button class="btn" type="submit">crear</button></form>
+    <div id="profiles"></div>
+  </section>
+
+  <!-- AJUSTES -->
+  <section class="page" id="page-settings">
+    <h1>Ajustes</h1>
+    <div class="stack">
+      <div class="panel"><span class="pt">Juego</span>
+        <div class="setrow"><span class="k">Carpeta</span><span class="v" id="set-path">—</span></div>
+        <div class="setrow"><span class="k"></span><button class="btn needs-idle" id="set-detect">detectar en steam</button><button class="btn needs-idle" id="set-browse">elegir carpeta</button><button class="btn" id="set-open">abrir</button></div>
+      </div>
+      <div class="panel"><span class="pt">Catálogo</span>
+        <div class="setrow"><span class="k">Estado</span><span class="v" id="set-catalog">—</span><button class="btn" id="set-refresh">recargar</button></div>
+      </div>
+      <div class="panel"><span class="pt">Seguridad</span>
+        <div class="setrow"><span class="k">Filtro</span><span class="v">ACTIVO — .exe .bat .ps1 .vbs y similares se bloquean al instalar.</span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer><span class="msg" id="status-text"><span class="faint">&gt; listo</span></span><span class="bar" id="status-bar"></span><span id="status-pct"></span></footer>
+
+<div class="shade" id="scrim"></div>
+<aside class="detail" id="drawer" aria-hidden="true">
+  <div class="detail-head">
+    <img class="ico" id="d-icon" alt="">
+    <div class="t"><h2 id="d-name"></h2><div class="by" id="d-by"></div><div class="facts" id="d-facts"></div></div>
+    <button class="btn" id="d-close" aria-label="Cerrar">x</button>
+  </div>
+  <div class="detail-bar">
+    <button class="btn needs-idle" id="d-install"></button>
+    <div class="tabs" id="d-tabs">
+      <button class="tab active" data-tab="readme">readme</button>
+      <button class="tab" data-tab="changelog">cambios</button>
+      <button class="tab" data-tab="deps">deps</button>
+    </div>
+  </div>
+  <div class="detail-body" id="d-body"></div>
+</aside>
+
+<div class="msgs" id="toasts"></div>
+
+<script>/*MARKED*/</script>
+<script>
+"use strict";
+
+// ---------- puente con C# ----------
+const pending = new Map();
+let seq = 0;
+function call(cmd, args = {}) {
+  return new Promise((resolve, reject) => {
+    const id = ++seq;
+    pending.set(id, { resolve, reject });
+    chrome.webview.postMessage({ id, cmd, args });
+  });
+}
+chrome.webview.addEventListener("message", e => {
+  const m = e.data;
+  if (m.event) return onEvent(m.event, m.data);
+  const p = pending.get(m.id);
+  if (!p) return;
+  pending.delete(m.id);
+  m.ok ? p.resolve(m.data) : p.reject(new Error(m.error));
+});
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+// Todo texto que viene de mods (nombres, descripciones) entra por textContent, nunca innerHTML.
+function h(tag, props = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k in el && typeof v !== "string") el[k] = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+const PLACEHOLDER = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" fill="#07100a"/><path d="M16 7 8 11.5v9L16 25l8-4.5v-9z" fill="none" stroke="#23b357" stroke-width="1.5"/></svg>');
+function modIcon(src) {
+  return h("img", { class: "ico", src: src || PLACEHOLDER, alt: "", loading: "lazy", onerror: e => { e.target.onerror = null; e.target.src = PLACEHOLDER; } });
+}
+const compact = new Intl.NumberFormat("es", { notation: "compact", maximumFractionDigits: 1 });
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const pretty = name => name.replaceAll("_", " ");
+
+function toast(msg, kind = "ok") {
+  const t = h("div", { class: "note " + kind }, (kind === "ok" ? "> " : "!! ERROR: ") + msg);
+  $("toasts").append(t);
+  setTimeout(() => t.remove(), kind === "ok" ? 3200 : 7000);
+}
+function confirmDialog(title, text, okLabel, danger = false) {
+  return new Promise(resolve => {
+    const close = v => { bg.remove(); document.removeEventListener("keydown", onKey, true); resolve(v); };
+    const onKey = e => {
+      if (e.key === "Escape" || e.key.toLowerCase() === "n") { e.stopPropagation(); close(false); }
+      if (e.key.toLowerCase() === "s") { e.stopPropagation(); close(true); }
+    };
+    const ok = h("button", { class: "btn " + (danger ? "red" : ""), onclick: () => close(true) }, "S · " + okLabel);
+    const bg = h("div", { class: "dialog-bg", onclick: e => { if (e.target === bg) close(false); } },
+      h("div", { class: "dialog", role: "dialog", "aria-modal": "true" },
+        h("div", { class: "q" }, "?? " + title), h("p", {}, text),
+        h("div", { class: "row" }, h("button", { class: "btn", onclick: () => close(false) }, "N · cancelar"), ok)));
+    document.addEventListener("keydown", onKey, true);
+    document.body.append(bg);
+    ok.focus();
+  });
+}
+// Corre un comando; errores van a mensaje. Devuelve undefined si fallo.
+async function run(cmd, args, okMsg) {
+  try {
+    const r = await call(cmd, args);
+    if (r && r.mods) setState(r);
+    if (okMsg) toast(okMsg);
+    return r ?? true;
+  } catch (err) {
+    toast(err.message, "err");
+  }
+}
+
+// ---------- estado ----------
+let S = null;
+function setState(s) {
+  S = s;
+  document.body.classList.toggle("busy", !!s.busy || installing);
+  renderSidebar(); renderHome(); renderMods(); renderProfiles(); renderSettings();
+  markInstalled();
+}
+const updates = () => S.mods.filter(m => m.latest);
+
+function onEvent(ev, data) {
+  if (ev === "state") setState(data);
+  else if (ev === "log") addLog(data.text);
+  else if (ev === "progress") showProgress(data.text, data.percent);
+  else if (ev === "catalog") setCatalog(data);
+}
+
+// ---------- navegacion ----------
+function go(page) {
+  document.querySelectorAll(".nav").forEach(n => n.classList.toggle("active", n.dataset.page === page));
+  document.querySelectorAll(".page").forEach(p => p.classList.toggle("active", p.id === "page-" + page));
+  if (page === "browse") { if (!browse.loaded) browseSearch(); $("browse-q").focus(); }
+  if (page === "config") loadConfigList();
+}
+document.querySelectorAll(".nav").forEach(n => n.addEventListener("click", () => go(n.dataset.page)));
+document.addEventListener("keydown", e => {
+  if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); go("browse"); }
+  if (e.key === "Escape") closeDrawer();
+});
+const clock = () => { $("hd-clock").textContent = new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }); };
+clock(); setInterval(clock, 15000);
+
+// ---------- barra lateral / cabecera ----------
+function renderSidebar() {
+  $("profile-select").replaceChildren(...S.profiles.map(p => h("option", { value: p, selected: p === S.activeProfile }, p)));
+  $("hd-profile").textContent = S.activeProfile.toUpperCase();
+  const n = updates().length;
+  $("nav-updates").hidden = !n;
+  $("nav-updates").textContent = "▲" + n;
+}
+$("profile-select").addEventListener("change", e => switchProfile(e.target.value));
+
+let catalogInfo = { status: "loading" };
+function setCatalog(c) {
+  catalogInfo = c;
+  const el = $("cat-text");
+  if (c.status === "ready") el.textContent = c.count.toLocaleString("es") + " MODS";
+  else if (c.status === "error") { el.textContent = "ERROR"; el.className = "red"; }
+  else el.replaceChildren("CARGANDO", h("span", { class: "blink" }, "_"));
+  if (c.status === "ready") el.className = "";
+  if (c.status === "error") toast("no se pudo cargar el catálogo: " + c.error, "err");
+  if (c.status === "ready" && $("page-browse").classList.contains("active")) browseSearch();
+  if (S) { renderSettings(); renderHome(); }
+}
+
+// ---------- inicio ----------
+function renderHome() {
+  const callout = $("home-callout");
+  callout.replaceChildren();
+  const ready = S.gameFound && S.hasExe;
+  if (!ready)
+    callout.append(h("div", { class: "warn-box" },
+      h("span", {}, S.gameFound ? "!! la carpeta no tiene Lethal Company.exe — ¿es la correcta?" : "!! no encontré la carpeta del juego"),
+      h("button", { class: "btn amber needs-idle", onclick: () => run("detectGame", {}, "juego detectado") }, "detectar"),
+      h("button", { class: "btn amber needs-idle", onclick: () => run("browseGame") }, "elegir")));
+
+  const tag = $("hero-tag");
+  tag.textContent = ready ? "OPERATIVO" : "JUEGO NO ENCONTRADO";
+  tag.className = "v " + (ready ? "" : "red");
+  $("hero-path").textContent = S.gameRoot || "(sin carpeta)";
+  $("hero-bep").textContent = S.bepInEx || "no instalado";
+  const enabled = S.mods.filter(m => m.enabled).length;
+  $("st-installed").textContent = `${S.mods.length} instalados / ${enabled} activos`;
+  const ups = updates();
+  const st = $("st-updates");
+  st.textContent = catalogInfo.status !== "ready" ? "consultando…" : ups.length ? `${ups.length} disponible(s)` : "al día";
+  st.className = "v " + (ups.length ? "amber" : "");
+  $("play-mods").disabled = $("play-vanilla").disabled = !ready;
+
+  $("home-update-all").hidden = !ups.length;
+  $("home-updates").replaceChildren(...(ups.length
+    ? ups.slice(0, 8).map(m => h("div", { class: "line" },
+        h("span", { class: "nm" }, pretty(m.name)), h("span", { class: "lead" }),
+        h("span", { class: "sub" }, m.version + " → "), h("span", { class: "amber" }, m.latest),
+        h("button", { class: "btn amber needs-idle", onclick: () => install([m.key], `${m.name} actualizado`) }, "▲")))
+    : [h("div", { class: "empty" }, catalogInfo.status === "ready" ? "> todo al día" : "> esperando catálogo…")]));
+}
+$("play-mods").addEventListener("click", () => run("play", { vanilla: false }, "lanzando Lethal Company con mods"));
+$("play-vanilla").addEventListener("click", () => run("play", { vanilla: true }, "lanzando Lethal Company vanilla"));
+$("home-update-all").addEventListener("click", updateAll);
+$("clear-log").addEventListener("click", () => $("log").replaceChildren());
+
+function addLog(text) {
+  const log = $("log");
+  const err = text.startsWith("ERROR");
+  log.append(h("div", { class: err ? "red" : null },
+    h("span", { class: "t" }, new Date().toLocaleTimeString("es") + " "), text));
+  while (log.childElementCount > 300) log.firstChild.remove();
+  log.scrollTop = log.scrollHeight;
+}
+
+// ---------- instalar / progreso ----------
+let installing = false;
+async function install(keys, okMsg) {
+  installing = true;
+  document.body.classList.add("busy");
+  showProgress("preparando…", 0);
+  try {
+    setState(await call("install", { keys }));
+    toast(okMsg);
+  } catch (err) {
+    toast(err.message, "err");
+  } finally {
+    installing = false;
+    document.body.classList.toggle("busy", !!S?.busy);
+    setTimeout(() => { if (!installing) idleStatus(); }, 800);
+  }
+}
+function updateAll() {
+  const ups = updates();
+  if (ups.length) install(ups.map(m => m.key), `${ups.length} mod(s) actualizados`);
+}
+function showProgress(text, pct) {
+  pct = Math.max(0, Math.min(100, pct));
+  const cells = 28, full = Math.round(pct / 100 * cells);
+  $("status-text").textContent = "> " + text.toUpperCase();
+  $("status-bar").textContent = "▓".repeat(full) + "░".repeat(cells - full);
+  $("status-pct").textContent = String(Math.round(pct)).padStart(3) + "%";
+}
+function idleStatus() {
+  $("status-text").replaceChildren(h("span", { class: "faint" }, "> listo"));
+  $("status-bar").textContent = "";
+  $("status-pct").textContent = "";
+}
+
+// ---------- mods ----------
+function renderMods() {
+  const ups = updates();
+  const enabled = S.mods.filter(m => m.enabled).length;
+  $("mods-sub").textContent = S.mods.length ? `${S.mods.length} instalados · ${enabled} activos${ups.length ? ` · ${ups.length} con actualización` : ""}` : "";
+  const ub = $("mods-update-all");
+  ub.hidden = !ups.length;
+  ub.textContent = `actualizar todo (${ups.length})`;
+
+  const q = $("mods-filter").value.trim().toLowerCase();
+  const mods = S.mods.filter(m => !q || (m.name + " " + m.owner + " " + m.description).toLowerCase().includes(q));
+  const list = $("mods-list");
+  if (!S.mods.length) {
+    list.replaceChildren(h("div", { class: "empty" }, "> no hay mods instalados.\n> la tienda instala cada mod con sus dependencias.\n\n",
+      h("button", { class: "btn", onclick: () => go("browse") }, "ir a la tienda")));
+    return;
+  }
+  if (!mods.length) { list.replaceChildren(h("div", { class: "empty" }, `> nada coincide con "${q}"`)); return; }
+  list.replaceChildren(...mods.map(m => h("div", { class: "line" + (m.enabled ? "" : " off"), title: m.description || null },
+    modIcon(m.icon),
+    h("span", { class: "nm" }, h("b", {}, pretty(m.name)), h("span", { class: "dim" }, "  " + m.owner)),
+    h("span", { class: "lead" }),
+    m.latest
+      ? h("button", { class: "btn amber needs-idle", title: "Actualizar", onclick: () => install([m.key], `${m.name} actualizado a ${m.latest}`) }, `${m.version} ▲ ${m.latest}`)
+      : h("span", { class: "num" }, "v" + m.version),
+    h("button", { class: "btn needs-idle", title: m.enabled ? "Desactivar" : "Activar", style: "width:9ch",
+      onclick: () => run("toggle", { key: m.key, enabled: !m.enabled }) }, m.enabled ? "on" : "off"),
+    h("button", { class: "btn red needs-idle", title: "Desinstalar", onclick: () => uninstall(m) }, "x"))));
+}
+$("mods-filter").addEventListener("input", renderMods);
+$("mods-update-all").addEventListener("click", updateAll);
+$("mods-open-folder").addEventListener("click", () => run("openFolder"));
+// Dependencias que ningun otro mod instalado usa (las compartidas nunca aparecen). Vienen marcadas,
+// pero se pueden desmarcar: el launcher no sabe si instalaste alguna a proposito.
+function uninstallDialog(m, extras) {
+  return new Promise(resolve => {
+    const boxes = extras.map(x => h("input", { type: "checkbox", checked: true, style: "accent-color: var(--g)" }));
+    const close = v => { bg.remove(); document.removeEventListener("keydown", onKey, true); resolve(v); };
+    const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); close(null); } };
+    const picked = () => extras.filter((_, i) => boxes[i].checked).map(x => x.key);
+    const ok = h("button", { class: "btn red", onclick: () => close(picked()) }, "desinstalar");
+    const refresh = () => { const n = picked().length; ok.textContent = n ? `desinstalar + ${n} dependencias` : "desinstalar"; };
+    boxes.forEach(b => b.addEventListener("change", refresh));
+    const toggleAll = h("button", { class: "btn", onclick: () => { const all = boxes.every(b => b.checked); boxes.forEach(b => b.checked = !all); refresh(); } }, "marcar/desmarcar todo");
+    const bg = h("div", { class: "dialog-bg", onclick: e => { if (e.target === bg) close(null); } },
+      h("div", { class: "dialog", role: "dialog", "aria-modal": "true", style: "width: min(560px, 94vw)" },
+        h("div", { class: "q" }, "?? desinstalar " + pretty(m.name)),
+        h("p", {}, "Se borra la carpeta del mod. Puedes volver a instalarlo desde la tienda."),
+        extras.length ? h("div", {},
+          h("p", { style: "margin-bottom: 8px" }, `Estas ${extras.length} dependencias ya no las usa ningún otro mod instalado. Las compartidas con otros mods no aparecen aquí:`),
+          h("div", { style: "max-height: 240px; overflow-y: auto; border: 1px solid var(--g-dim); margin-bottom: 12px" },
+            extras.map((x, i) => h("label", { class: "line", style: "cursor: pointer" }, boxes[i], modIcon(x.icon),
+              h("span", { class: "nm" }, h("b", {}, pretty(x.name)), h("span", { class: "dim" }, "  " + x.owner)),
+              h("span", { class: "lead" }), h("span", { class: "num" }, "v" + x.version)))),
+          toggleAll, h("div", { style: "height: 14px" })) : null,
+        h("div", { class: "row" }, h("button", { class: "btn", onclick: () => close(null) }, "cancelar"), ok)));
+    document.addEventListener("keydown", onKey, true);
+    document.body.append(bg);
+    refresh();
+    ok.focus();
+  });
+}
+async function uninstall(m) {
+  let extras = [];
+  try { extras = await call("depsPreview", { keys: [m.key] }); } catch { /* sin catalogo: solo el mod */ }
+  const picked = await uninstallDialog(m, extras);
+  if (picked) run("uninstall", { keys: [m.key, ...picked] }, picked.length ? `${m.name} y ${picked.length} dependencias desinstalados` : m.name + " desinstalado");
+}
+
+// ---------- tienda ----------
+const browse = { q: "", offset: 0, total: 0, loading: false, loaded: false, token: 0 };
+async function browseSearch() {
+  if (catalogInfo.status !== "ready") {
+    $("browse-count").textContent = catalogInfo.status === "error" ? "!! el catálogo no cargó — reintenta desde ajustes" : "> descargando catálogo de thunderstore…";
+    $("browse-cards").replaceChildren();
+    return;
+  }
+  browse.q = $("browse-q").value.trim();
+  browse.offset = 0;
+  browse.loaded = true;
+  $("browse-cards").replaceChildren();
+  await browseMore();
+}
+async function browseMore() {
+  if (browse.loading) return;
+  browse.loading = true;
+  const token = ++browse.token;
+  try {
+    const r = await call("search", { q: browse.q, offset: browse.offset });
+    if (token !== browse.token) return; // llego una busqueda mas nueva
+    const start = browse.offset;
+    browse.total = r.total;
+    browse.offset += r.items.length;
+    $("browse-count").textContent = r.total ? `${r.total.toLocaleString("es")} resultados${browse.q ? ` para "${browse.q}"` : " · por descargas"}` : "";
+    if (!r.total) $("browse-cards").replaceChildren(h("div", { class: "empty" }, "> sin resultados. prueba otro nombre o autor."));
+    else $("browse-cards").append(...r.items.map((p, i) => storeLine(p, start + i + 1)));
+  } catch (err) {
+    toast(err.message, "err");
+  } finally {
+    browse.loading = false;
+  }
+}
+function installButton(p) {
+  return p.installed
+    ? h("button", { class: "btn store-install", disabled: true, "data-key": p.fullName, style: "width:14ch" }, "instalado")
+    : h("button", { class: "btn store-install needs-idle", "data-key": p.fullName, style: "width:14ch",
+        onclick: e => { e.stopPropagation(); install([p.fullName], p.name + " instalado"); } }, "instalar");
+}
+function storeLine(p, n) {
+  return h("div", { class: "line click", tabindex: 0, title: p.description, onclick: () => openDrawer(p), onkeydown: e => { if (e.key === "Enter") openDrawer(p); } },
+    h("span", { class: "idx" }, n),
+    modIcon(p.iconUrl),
+    h("span", { class: "nm" }, h("b", {}, pretty(p.name)), h("span", { class: "dim" }, "  " + p.owner)),
+    h("span", { class: "lead" }),
+    h("span", { class: "num", style: "width:9ch" }, "⬇ " + compact.format(p.downloadCount)),
+    h("span", { class: "num", style: "width:7ch" }, "★ " + compact.format(p.ratingScore)),
+    installButton(p));
+}
+function markInstalled() {
+  const keys = new Set(S.mods.map(m => m.key));
+  document.querySelectorAll(".store-install:not(:disabled)").forEach(b => {
+    if (keys.has(b.dataset.key)) b.replaceWith(installButton({ fullName: b.dataset.key, installed: true }));
+  });
+  if (drawerPkg) renderDrawerButton();
+}
+$("browse-q").addEventListener("input", debounce(browseSearch, 250));
+new IntersectionObserver(es => {
+  if (es[0].isIntersecting && browse.loaded && browse.offset < browse.total) browseMore();
+}, { rootMargin: "400px" }).observe($("browse-sentinel"));
+
+// ---------- detalle ----------
+let drawerPkg = null, drawerDetail = null, drawerTab = "readme";
+function openDrawer(p) {
+  drawerPkg = p; drawerDetail = null;
+  $("d-icon").src = p.iconUrl || PLACEHOLDER;
+  $("d-name").textContent = pretty(p.name);
+  $("d-by").textContent = "por " + p.owner;
+  $("d-facts").textContent = [`v${p.latestVersion}`, `⬇ ${compact.format(p.downloadCount)}`, `★ ${compact.format(p.ratingScore)}`, ...(p.categories || []).slice(0, 3)].join("  ·  ");
+  renderDrawerButton();
+  setTab("readme");
+  $("drawer").classList.add("open"); $("scrim").classList.add("open");
+  $("drawer").setAttribute("aria-hidden", "false");
+  call("detail", { owner: p.owner, name: p.name }).then(d => {
+    if (drawerPkg !== p) return;
+    drawerDetail = d;
+    setTab(drawerTab);
+  }, err => { if (drawerPkg === p) $("d-body").replaceChildren(h("div", { class: "pad red" }, "!! no se pudo cargar: " + err.message)); });
+}
+function renderDrawerButton() {
+  const installed = S.mods.some(m => m.key === drawerPkg.fullName);
+  const b = $("d-install");
+  b.disabled = installed;
+  b.textContent = installed ? "instalado" : "instalar";
+}
+$("d-install").addEventListener("click", () => install([drawerPkg.fullName], drawerPkg.name + " instalado"));
+function closeDrawer() {
+  drawerPkg = null;
+  $("drawer").classList.remove("open"); $("scrim").classList.remove("open");
+  $("drawer").setAttribute("aria-hidden", "true");
+}
+$("d-close").addEventListener("click", closeDrawer);
+$("scrim").addEventListener("click", closeDrawer);
+$("d-tabs").addEventListener("click", e => { if (e.target.dataset.tab) setTab(e.target.dataset.tab); });
+
+// El README es HTML de terceros: va en un iframe sandbox SIN allow-scripts, asi que
+// no puede ejecutar JS ni hablar con el puente. Los links salen al navegador (C#).
+const README_CSS = `body{margin:0;padding:18px 20px 40px;background:#030604;color:#9fe8b4;font:13.5px/1.6 "Cascadia Mono",Consolas,monospace;word-wrap:break-word}
+a{color:#3dff7e}img{max-width:100%;height:auto}h1,h2,h3,h4{color:#ffb52e;line-height:1.3;margin:1.4em 0 .5em;font-size:1em;text-transform:uppercase;letter-spacing:.08em}
+h1::before{content:"# "}h2::before{content:"## "}h3::before{content:"### "}h1:first-child,h2:first-child{margin-top:0}
+code{color:#3dff7e;background:#07100a;padding:0 .3em}pre{background:#07100a;padding:12px;overflow:auto;border:1px solid #155c2e}pre code{padding:0}
+blockquote{margin:0;padding:0 1em;border-left:2px solid #155c2e;color:#23b357}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #155c2e;padding:4px 8px}
+hr{border:0;border-top:1px dashed #155c2e}ul{padding-left:1.4em}::selection{background:#3dff7e;color:#030604}
+::-webkit-scrollbar{width:12px}::-webkit-scrollbar-thumb{background:#155c2e;border:3px solid #030604}`;
+function setTab(tab) {
+  drawerTab = tab;
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === tab));
+  const body = $("d-body");
+  if (!drawerDetail) { body.replaceChildren(h("div", { class: "pad dim" }, "> cargando", h("span", { class: "blink" }, "_"))); return; }
+  if (tab === "deps") {
+    const deps = drawerDetail.dependencies.filter(d => !d.startsWith("BepInEx-BepInExPack"));
+    body.replaceChildren(h("div", { class: "pad" },
+      deps.length ? h("div", { class: "dim", style: "margin-bottom:10px" }, "> se instalan automáticamente junto al mod:") : h("div", { class: "dim" }, "> sin dependencias (aparte de BepInEx)."),
+      deps.map(d => {
+        const parts = d.split("-"), ver = parts.pop();
+        return h("div", { class: "line" }, modIcon(`https://gcdn.thunderstore.io/live/repository/icons/${d}.png`),
+          h("span", { class: "nm" }, h("b", {}, pretty(parts.slice(1).join("-"))), h("span", { class: "dim" }, "  " + parts[0])),
+          h("span", { class: "lead" }), h("span", { class: "num" }, "v" + ver));
+      })));
+    return;
+  }
+  const md = tab === "readme" ? drawerDetail.readme : drawerDetail.changelog;
+  const html = md ? marked.parse(md) : `<p style="color:#23b357">&gt; ${tab === "readme" ? "este mod no tiene readme." : "este mod no tiene changelog."}</p>`;
+  body.replaceChildren(h("iframe", { sandbox: "allow-popups allow-popups-to-escape-sandbox", srcdoc: `<!doctype html><meta charset="utf-8"><base target="_blank"><style>${README_CSS}</style>${html}` }));
+}
+
+// ---------- config de mods ----------
+const cfg = { files: null, file: null, data: null, mode: "form", edits: new Map(), q: "", ui: null };
+const eid = e => e.section + "\u0001" + e.key;
+const valueOf = e => cfg.edits.has(eid(e)) ? cfg.edits.get(eid(e)) : e.value;
+const isTrue = v => String(v).toLowerCase() === "true";
+const NUM = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/;
+// mismo valor aunque cambie el formato: True/true, 1/1.0
+const same = (e, a, b) => a === b || (e.type === "Boolean" && a.toLowerCase() === b.toLowerCase()) || (NUM.test(a) && NUM.test(b) && Number(a) === Number(b));
+const cfgDirty = () => cfg.mode === "text" ? !!cfg.ui && cfg.ui.ta.value !== cfg.data.text : cfg.edits.size > 0;
+const modOf = f => f.mod && S ? S.mods.find(m => m.key === f.mod) : null;
+const cfgTitle = f => { const m = modOf(f); return m ? pretty(m.name) : f.name === "BepInEx" ? "BepInEx (núcleo)" : f.name; };
+
+async function loadConfigList() {
+  try {
+    const r = await call("configList");
+    cfg.files = r.files;
+    $("cfg-warn").replaceChildren(...(r.gameRunning ? [h("div", { class: "warn-box" },
+      h("span", {}, "!! Lethal Company está abierto. Cierra el juego antes de editar: tus cambios se pueden perder cuando el juego guarde su propia config."))] : []));
+    renderConfigFiles();
+  } catch (err) {
+    cfg.files = [];
+    $("cfg-files").replaceChildren(h("div", { class: "empty" }, "> " + err.message));
+  }
+}
+function renderConfigFiles() {
+  const q = $("cfg-filter").value.trim().toLowerCase();
+  const files = cfg.files.filter(f => !q || (cfgTitle(f) + " " + f.file).toLowerCase().includes(q))
+    .sort((a, b) => cfgTitle(a).localeCompare(cfgTitle(b), "es", { sensitivity: "base" }));
+  $("cfg-files").replaceChildren(...(files.length ? files.map(f => {
+    const m = modOf(f);
+    return h("div", { class: "cfg-file" + (f.file === cfg.file ? " active" : ""), tabindex: 0, title: f.file,
+      onclick: () => openConfig(f.file), onkeydown: e => { if (e.key === "Enter") openConfig(f.file); } },
+      m ? modIcon(m.icon) : h("span", { class: "blank" }, f.isCfg ? "cfg" : "txt"),
+      h("div", { class: "t" }, h("b", {}, cfgTitle(f)), h("small", {}, f.file)));
+  }) : [h("div", { class: "empty" }, cfg.files.length ? `> nada coincide con "${q}"` : "> no hay archivos en BepInEx/config.\n> se crean la primera vez que abres el juego con mods.")]));
+}
+$("cfg-filter").addEventListener("input", () => cfg.files && renderConfigFiles());
+
+async function openConfig(file) {
+  if (file === cfg.file) return;
+  if (cfgDirty() && !await confirmDialog("descartar cambios", "Tienes cambios sin guardar en este archivo.", "descartar", true)) return;
+  try {
+    cfg.data = await call("configRead", { file });
+    cfg.file = file; cfg.edits.clear(); cfg.q = "";
+    cfg.mode = cfg.data.isCfg ? "form" : "text";
+    renderConfigFiles(); renderConfigMain();
+  } catch (err) { toast(err.message, "err"); }
+}
+
+// Control segun el tipo del ajuste. Devuelve { el, set }: set() lo usa el boton "defecto".
+function makeControl(e, onChange) {
+  const t = e.type, cur0 = valueOf(e);
+  let el, set;
+  if (t === "Boolean") {
+    let on;
+    el = h("button", { class: "btn", type: "button" });
+    set = v => { on = isTrue(v); el.textContent = on ? "on" : "off"; };
+    el.onclick = () => { set(on ? "false" : "true"); onChange(on ? "true" : "false"); };
+  } else if (e.values && !e.flags && e.values.length <= 40) {
+    el = h("select", { class: "term" }, ...e.values.map(v => h("option", { value: v }, v)));
+    set = v => { if (![...el.options].some(o => o.value === v)) el.append(h("option", { value: v }, v)); el.value = v; };
+    el.onchange = () => onChange(el.value);
+  } else if (/^(U?Int|Byte|SByte|U?Short|U?Long|Single|Double|Decimal)/.test(t) && NUM.test(cur0)) {
+    const integer = /^(U?Int|Byte|SByte|U?Short|U?Long)/.test(t);
+    el = h("input", { class: "cin", type: "number", step: integer ? "1" : "any",
+      min: e.min != null && NUM.test(e.min) ? e.min : null, max: e.max != null && NUM.test(e.max) ? e.max : null });
+    set = v => { el.value = v; };
+    el.oninput = () => { if (el.value !== "") onChange(el.value); };
+  } else {
+    el = h("input", { class: "cin", type: "text", spellcheck: "false", autocomplete: "off" });
+    set = v => { el.value = v; };
+    el.oninput = () => onChange(el.value);
+    if (e.values && !e.flags) { // lista larga (KeyCode, etc.): texto libre con sugerencias
+      const id = "dl" + Math.random().toString(36).slice(2);
+      el.setAttribute("list", id);
+      const box = h("span", {}, el, h("datalist", { id }, ...e.values.map(v => h("option", { value: v }))));
+      set(cur0);
+      return { el: box, set };
+    }
+  }
+  set(cur0);
+  return { el, set };
+}
+
+function entryRow(e) {
+  const id = eid(e);
+  const defBtn = h("button", { class: "btn", type: "button", title: "Restaurar el valor por defecto: " + e.default }, "defecto");
+  const row = h("div", { class: "erow" });
+  const refresh = () => {
+    row.classList.toggle("mod", cfg.edits.has(id));
+    defBtn.hidden = e.default == null || same(e, valueOf(e), e.default);
+  };
+  const setEdit = v => {
+    if (v === e.value || same(e, v, e.value)) cfg.edits.delete(id); else cfg.edits.set(id, v);
+    refresh(); updateSaveBar();
+  };
+  const ctl = makeControl(e, setEdit);
+  defBtn.onclick = () => { ctl.set(e.default); setEdit(e.default); };
+  const meta = [e.type, e.default != null ? "defecto: " + (e.default === "" ? "(vacío)" : e.default) : null,
+    e.min != null ? `rango: ${e.min} a ${e.max}` : null].filter(Boolean).join("  ·  ");
+  row.append(
+    h("div", { class: "nm" }, h("b", {}, e.key), e.description ? h("div", { class: "d" }, e.description) : null, h("div", { class: "meta" }, meta)),
+    h("div", { class: "ctl" }, ctl.el, defBtn));
+  refresh();
+  return row;
+}
+
+function renderConfigBody() {
+  const body = cfg.ui.body, q = cfg.q.trim().toLowerCase();
+  if (cfg.mode === "text") {
+    cfg.ui.ta = h("textarea", { class: "cfgtext", spellcheck: "false", wrap: "off" });
+    cfg.ui.ta.value = cfg.data.text;
+    cfg.ui.ta.addEventListener("input", updateSaveBar);
+    body.replaceChildren(cfg.ui.ta);
+    return updateSaveBar();
+  }
+  const bySection = new Map();
+  for (const e of cfg.data.entries)
+    if (!q || (e.key + " " + e.section + " " + e.description).toLowerCase().includes(q)) {
+      if (!bySection.has(e.section)) bySection.set(e.section, []);
+      bySection.get(e.section).push(e);
+    }
+  body.replaceChildren(...(bySection.size ? [...bySection].map(([sec, es]) =>
+    h("div", { class: "panel" }, h("span", { class: "pt" }, sec || "(sin sección)"), ...es.map(entryRow)))
+    : [h("div", { class: "empty" }, cfg.data.entries.length ? `> ningún ajuste coincide con "${cfg.q}"` : "> este archivo no tiene ajustes que editar.")]));
+  updateSaveBar();
+}
+
+function updateSaveBar() {
+  const u = cfg.ui; if (!u) return;
+  const n = cfg.mode === "text" ? (cfgDirty() ? 1 : 0) : cfg.edits.size;
+  u.save.disabled = u.discard.disabled = !n;
+  u.save.textContent = cfg.mode === "text" ? "guardar" : n ? `guardar (${n})` : "guardar";
+}
+
+function renderConfigMain() {
+  const f = cfg.files.find(x => x.file === cfg.file), m = modOf(f);
+  const ui = cfg.ui = {};
+  ui.body = h("div");
+  ui.save = h("button", { class: "btn needs-idle", onclick: saveConfig }, "guardar");
+  ui.discard = h("button", { class: "btn", onclick: () => { cfg.edits.clear(); renderConfigBody(); } }, "descartar");
+  ui.mode = h("button", { class: "btn", style: cfg.data.isCfg ? null : "display:none", onclick: () => {
+    if (cfgDirty()) return toast("guarda o descarta los cambios antes de cambiar de vista", "err");
+    cfg.mode = cfg.mode === "form" ? "text" : "form";
+    ui.mode.textContent = cfg.mode === "form" ? "ver como texto" : "ver formulario";
+    renderConfigBody();
+  } }, cfg.mode === "form" ? "ver como texto" : "ver formulario");
+  const filter = h("input", { placeholder: "buscar un ajuste…", autocomplete: "off", spellcheck: "false" });
+  filter.addEventListener("input", debounce(() => { cfg.q = filter.value; if (cfg.mode === "form") renderConfigBody(); }, 150));
+  $("cfg-main").replaceChildren(
+    h("div", { class: "cfg-head" },
+      h("div", { class: "ttl" }, h("b", {}, cfgTitle(f)), h("small", {}, f.file + (m ? `  ·  v${m.version}` : ""))),
+      ui.mode, ui.discard, ui.save,
+      cfg.data.isCfg ? h("label", { class: "prompt" }, h("span", { class: "dim" }, "> ajuste:"), filter) : null),
+    ui.body);
+  renderConfigBody();
+}
+
+async function saveConfig() {
+  const file = cfg.file;
+  const args = cfg.mode === "text" ? { file, text: cfg.ui.ta.value }
+    : { file, changes: [...cfg.edits].map(([id, value]) => { const [section, key] = id.split("\u0001"); return { section, key, value }; }) };
+  try {
+    cfg.data = await call("configWrite", args);
+    cfg.edits.clear();
+    renderConfigBody();
+    toast("config guardada: " + file);
+  } catch (err) { toast(err.message, "err"); }
+}
+
+// ---------- perfiles ----------
+// ---------- modpack (compartir) ----------
+$("pack-export").addEventListener("click", async () => {
+  try {
+    const r = await call("packExport", { name: $("pack-name").value });
+    if (!r) return; // cancelo el dialogo de guardar
+    toast(`modpack guardado: ${r.mods} mods, ${r.configs} configs`);
+    if (r.skipped.length) toast(`${r.skipped.length} mod(s) sin versión conocida se dejaron fuera: ${r.skipped.join(", ")}`, "err");
+  } catch (err) { toast(err.message, "err"); }
+});
+
+function packDialog(info) {
+  return new Promise(resolve => {
+    const close = v => { bg.remove(); document.removeEventListener("keydown", onKey, true); resolve(v); };
+    const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); close(false); } };
+    const off = info.mods.filter(m => !m.enabled).length;
+    const ok = h("button", { class: "btn primary", onclick: () => close(true) }, "cargar modpack");
+    const bg = h("div", { class: "dialog-bg", onclick: e => { if (e.target === bg) close(false); } },
+      h("div", { class: "dialog", role: "dialog", "aria-modal": "true", style: "width: min(580px, 94vw)" },
+        h("div", { class: "q" }, "?? cargar modpack “" + info.name + "”"),
+        h("p", {}, `${info.mods.length} mods${off ? ` (${off} ${off === 1 ? "viene apagado" : "vienen apagados"})` : ""} · ${info.configs} archivos de config` + (info.files.length ? " · ajustes extra" : "")),
+        h("div", { style: "max-height: 230px; overflow-y: auto; border: 1px solid var(--g-dim); margin-bottom: 14px" },
+          info.mods.map(m => h("div", { class: "line" + (m.enabled ? "" : " off") },
+            h("span", { class: "nm" }, h("b", {}, pretty(m.name)), h("span", { class: "dim" }, "  " + m.owner)),
+            h("span", { class: "lead" }), h("span", { class: "num" }, (m.enabled ? "" : "off · ") + "v" + m.version)))),
+        h("p", {}, `Se crea el perfil nuevo “Pack ${info.name}” y se cambia a él. Tu perfil actual (mods, configs y patchers) se guarda y puedes volver desde Perfiles. Se bajan los mods de Thunderstore: puede tardar. Cierra Lethal Company antes.`),
+        h("div", { class: "row" }, h("button", { class: "btn", onclick: () => close(false) }, "cancelar"), ok)));
+    document.addEventListener("keydown", onKey, true);
+    document.body.append(bg);
+    ok.focus();
+  });
+}
+$("pack-import").addEventListener("click", async () => {
+  let info;
+  try { info = await call("packOpen"); } catch (err) { return toast(err.message, "err"); }
+  if (!info || !await packDialog(info)) return;
+  installing = true;
+  document.body.classList.add("busy");
+  showProgress("Preparando modpack…", 0);
+  try {
+    const r = await call("packApply");
+    setState(r.state);
+    toast(`modpack cargado en el perfil “${r.profile}”`);
+    for (const p of r.problems) { addLog("ERROR: " + p); }
+    if (r.problems.length) toast(`${r.problems.length} problema(s) al cargar; mira el registro en Inicio`, "err");
+  } catch (err) {
+    toast(err.message, "err");
+    call("state").then(setState, () => {});
+  } finally {
+    installing = false;
+    document.body.classList.toggle("busy", !!S?.busy);
+    setTimeout(() => { if (!installing) idleStatus(); }, 800);
+  }
+});
+
+function renderProfiles() {
+  $("profiles").replaceChildren(...S.profiles.map(p => {
+    const active = p === S.activeProfile;
+    return h("div", { class: "line" },
+      h("span", { class: active ? "" : "faint" }, active ? ">" : " "),
+      h("span", { class: "nm" }, h("b", {}, p.toUpperCase())),
+      h("span", { class: "lead" }),
+      h("span", { class: "sub" }, active ? `activo · ${S.mods.length} mods` : "guardado"),
+      h("button", { class: "btn needs-idle", disabled: active, style: "width:11ch", onclick: () => switchProfile(p) }, active ? "en uso" : "cargar"),
+      h("button", { class: "btn red needs-idle", disabled: active, title: "Borrar perfil", onclick: () => deleteProfile(p) }, "x"));
+  }));
+}
+async function switchProfile(name) {
+  if (name === S.activeProfile) return;
+  if (await confirmDialog(`cargar perfil "${name}"`, `Tus mods actuales se guardan en "${S.activeProfile}" y se cargan los de "${name}".`, "cargar"))
+    await run("switchProfile", { name }, `perfil "${name}" activo`);
+  renderSidebar(); // si cancelo, el select vuelve al perfil real
+}
+async function deleteProfile(name) {
+  if (await confirmDialog(`borrar perfil "${name}"`, "Se borran los mods guardados en ese perfil. No se puede deshacer.", "borrar", true))
+    run("deleteProfile", { name }, "perfil borrado");
+}
+$("new-profile").addEventListener("submit", async e => {
+  e.preventDefault();
+  const name = $("new-profile-name").value.trim();
+  if (!name) return;
+  if (await run("createProfile", { name }, `perfil "${name}" creado`)) $("new-profile-name").value = "";
+});
+
+// ---------- ajustes ----------
+function renderSettings() {
+  $("set-path").textContent = S.gameRoot ? S.gameRoot + (S.hasExe ? "" : "  (!! sin Lethal Company.exe)") : "(sin elegir)";
+  $("set-catalog").textContent = catalogInfo.status === "ready" ? `${catalogInfo.count.toLocaleString("es")} mods · se refresca solo cada hora`
+    : catalogInfo.status === "error" ? "ERROR: " + catalogInfo.error : "cargando…";
+}
+$("set-detect").addEventListener("click", () => run("detectGame", {}, "juego detectado"));
+$("set-browse").addEventListener("click", () => run("browseGame"));
+$("set-open").addEventListener("click", () => run("openFolder"));
+$("set-refresh").addEventListener("click", () => run("refreshCatalog"));
+
+// ---------- operador (ascii animado) ----------
+const OPERATOR = /*ASCII*/"";
+const GLYPHS = "@#%Ox*=+-:.";
+const op = { lines: OPERATOR.replace(/\r/g, "").replace(/\n+$/, "").split("\n"), els: [], dirty: [] };
+const noise = line => line.replace(/\S/g, () => GLYPHS[Math.random() * GLYPHS.length | 0]);
+function initOperator() {
+  const pre = $("operator");
+  op.els = op.lines.map(() => pre.appendChild(h("div")));
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    op.lines.forEach((l, i) => op.els[i].textContent = l);
+    return;
+  }
+  // arranque: la figura se traza de arriba hacia abajo, con ruido en la linea que se esta dibujando
+  let row = 0;
+  const boot = setInterval(() => {
+    for (let k = 0; k < 2 && row < op.lines.length; k++, row++) op.els[row].textContent = op.lines[row];
+    if (row < op.lines.length) op.els[row].textContent = noise(op.lines[row]);
+    else { clearInterval(boot); setInterval(glitch, 90); }
+  }, 28);
+}
+function glitch() {
+  if (document.hidden || !$("page-home").classList.contains("active")) return;
+  for (const i of op.dirty) { op.els[i].textContent = op.lines[i]; op.els[i].style.transform = ""; }
+  op.dirty = [];
+  // algunos caracteres sueltos parpadean a otro glifo
+  for (let n = 0; n < 5; n++) {
+    const i = Math.random() * op.lines.length | 0, l = op.lines[i], x = Math.random() * l.length | 0;
+    if (!l[x] || l[x] === " ") continue;
+    op.els[i].textContent = l.slice(0, x) + GLYPHS[Math.random() * GLYPHS.length | 0] + l.slice(x + 1);
+    op.dirty.push(i);
+  }
+  // de vez en cuando una franja se corre de lado, como señal mala
+  if (Math.random() < .05) {
+    const start = Math.random() * (op.lines.length - 4) | 0, dx = (Math.random() < .5 ? -1 : 1) * (2 + (Math.random() * 6 | 0));
+    for (let i = start; i < start + 2 + (Math.random() * 3 | 0); i++) {
+      op.els[i].style.transform = `translateX(${dx}px)`;
+      if (Math.random() < .5) op.els[i].textContent = noise(op.lines[i]);
+      op.dirty.push(i);
+    }
+  }
+}
+initOperator();
+
+// ---------- arranque ----------
+call("state").then(s => { setCatalog({ status: s.catalog, count: s.catalogCount }); setState(s); }, err => toast(err.message, "err"));
+</script>
+</body>
+</html>

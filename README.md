@@ -1,6 +1,7 @@
 # millasxl-lethal-launcher
 
 Launcher de mods para Lethal Company (Windows, .NET 10 + WebView2).
+(an alternative to Thunderstore/Overwolf, you fucking Jews)
 
 - Instala mods de Thunderstore con sus dependencias y versiones exactas.
 - Perfiles (mods + configs + patchers) y modpacks compartibles en un `.json`.
